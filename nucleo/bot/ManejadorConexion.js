@@ -1,4 +1,5 @@
-import makeWASocket, { 
+import { 
+    makeWASocket, 
     useMultiFileAuthState, 
     DisconnectReason, 
     Browsers,
@@ -10,7 +11,7 @@ import pino from 'pino';
 import chalk from 'chalk';
 import readline from 'readline';
 
-export class ManejadorConexion {
+class ManejadorConexion {
     constructor() {
         this.sock = null;
         this.intentosReconexion = 0;
@@ -251,3 +252,6 @@ export class ManejadorConexion {
         return this.estaConectado;
     }
 }
+
+// Exportación correcta para ES modules
+export { ManejadorConexion };

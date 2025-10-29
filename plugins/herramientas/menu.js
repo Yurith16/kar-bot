@@ -21,9 +21,11 @@ export default {
             // Comandos organizados por categorías
             const menuCommands = {
                 'descargas': [
-                    `${configBot.prefijo}play <nombre/url>`,
+                    `${configBot.prefijo}play <nombre/url> (audio)`,
+                    `${configBot.prefijo}play <nombre/url> (video)`,
                     `${configBot.prefijo}tiktok <url>`,
                     `${configBot.prefijo}facebook <url>`,
+                    `${configBot.prefijo}mediafire <url>`,
                     `${configBot.prefijo}imagen <nombre>`
                 ],
                 'herramientas': [
@@ -108,9 +110,9 @@ ${commandsInTag.split('\n').map(cmd => `┃ ➡️ ${cmd}`).join('\n')}
 
             // Imágenes aleatorias del bot (reemplaza con tus URLs)
             const botImages = [
-                'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=500&h=500&fit=crop',  // Robot 1
-                'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=500&h=500&fit=crop',  // Robot 2
-                'https://images.unsplash.com/photo-1535378620166-273708d44e4c?w=500&h=500&fit=crop'   // Tecnología
+                'https://qu.ax/xuphJ.jpg',  // Robot 1
+                'https://qu.ax/moWZr.jpg',  // Robot 2
+                'https://qu.ax/DMtmw.jpg'   // Tecnología
             ];
 
             const randomImage = botImages[Math.floor(Math.random() * botImages.length)];

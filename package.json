@@ -11,8 +11,28 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.4.0",
     "awesome-phonenumber": "^5.11.0",
+    "axios": "^1.6.0",
+    "buffer": "^6.0.3",
     "chalk": "^4.1.2",
+    "cheerio": "^1.0.0-rc.12",
+    "fluent-ffmpeg": "^2.1.2",
+    "ffmpeg-static": "^5.2.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "form-data": "^4.0.0",
+    "fs-extra": "^11.1.1",
+    "mime-types": "^3.0.1",
+    "moment": "^2.29.4",
+    "node-cron": "^3.0.2",
+    "node-webpmux": "^3.2.0",
+    "os": "^0.1.2",
+    "path": "^0.12.7",
     "pino": "^8.21.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "stream": "^0.0.2",
+    "url": "^0.11.3",
+    "util": "^0.12.5",
+    "uuid": "^9.0.1",
+    "yt-search": "^2.13.1"
   }
 }

@@ -1,0 +1,97 @@
+# Dependencias de Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de configuración sensibles
+config*.json
+settings.json
+creds.json
+appstate.json
+session.json
+*.key
+*.pem
+
+# Archivos de sesión de Baileys
+auth_info_baileys/
+sessions/
+creds/
+
+# Archivos temporales
+temp/
+tmp/
+*.tmp
+*.temp
+
+# Archivos de multimedia descargados
+downloads/
+media/
+
+# Logs
+logs/
+*.log
+pino-*
+
+# Archivos del sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema operativo
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archivos de prueba
+test/
+tests/
+coverage/
+.nyc_output/
+
+# Build files
+dist/
+build/
+*.tsbuildinfo
+
+# Archivos de base de datos (si usas alguna)
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de backup
+*.bak
+*.backup
+
+# Archivos específicos de tu bot
+prekey.json
+sender-key.json
+app-state-sync-version.json
+storage.json
+
+# Cache
+.cache/
+.cache-*/
+
+# Archivos de credenciales de APIs
+api_keys.json
+tokens.json
