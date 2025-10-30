@@ -45,32 +45,80 @@ export class CargadorPlugins {
 
     async cargarPlugin(rutaPlugin) {
         try {
-            // Convertir ruta a módulo ES6
             const rutaModulo = `file://${rutaPlugin}`;
-
-            // Importar el plugin
             const modulo = await import(rutaModulo);
 
-            if (modulo.default && typeof modulo.default === 'object') {
-                const plugin = modulo.default;
+            console.log(`🔍 Procesando: ${rutaPlugin}`);
 
-                if (plugin.name && plugin.execute) {
-                    this.procesadorMensajes.registrarComando(plugin.name, plugin);
-                    this.pluginsCargados.set(plugin.name, {
-                        ruta: rutaPlugin,
-                        plugin: plugin
+            // Soporte para múltiples estructuras
+            let plugin = modulo.default || modulo.comando;
+
+            if (!plugin) {
+                console.log(`⚠️ No se encontró export válido en: ${rutaPlugin}`);
+                return;
+            }
+
+            // Normalizar la estructura del plugin
+            const pluginNormalizado = this.normalizarPlugin(plugin, rutaPlugin);
+
+            if (pluginNormalizado && pluginNormalizado.nombre && pluginNormalizado.execute) {
+                this.procesadorMensajes.registrarComando(pluginNormalizado.nombre, pluginNormalizado);
+                this.pluginsCargados.set(pluginNormalizado.nombre, {
+                    ruta: rutaPlugin,
+                    plugin: pluginNormalizado
+                });
+
+                console.log(`✅ Plugin cargado: ${pluginNormalizado.nombre}`);
+
+                // Registrar aliases si existen
+                if (pluginNormalizado.aliases && Array.isArray(pluginNormalizado.aliases)) {
+                    pluginNormalizado.aliases.forEach(alias => {
+                        this.procesadorMensajes.registrarComando(alias, pluginNormalizado);
+                        console.log(`✅ Alias registrado: ${alias} -> ${pluginNormalizado.nombre}`);
                     });
-
-                    console.log(`✅ Plugin cargado: ${plugin.name}`);
-                } else {
-                    console.log(`⚠️ Plugin inválido en: ${rutaPlugin}`);
                 }
             } else {
-                console.log(`⚠️ No se encontró export default en: ${rutaPlugin}`);
+                console.log(`⚠️ Plugin inválido en: ${rutaPlugin}`);
+                console.log(`   - ¿Tiene nombre?: ${!!pluginNormalizado?.nombre}`);
+                console.log(`   - ¿Tiene execute?: ${!!pluginNormalizado?.execute}`);
             }
+
         } catch (error) {
             console.error(`❌ Error cargando plugin ${rutaPlugin}:`, error);
         }
+    }
+
+    normalizarPlugin(plugin, rutaPlugin) {
+        // Si ya tiene la estructura correcta, retornarlo tal cual
+        if (plugin.nombre && plugin.execute) {
+            return plugin;
+        }
+
+        // Convertir estructura antigua a nueva
+        const pluginNormalizado = { ...plugin };
+
+        // Convertir 'name' a 'nombre'
+        if (plugin.name && !plugin.nombre) {
+            pluginNormalizado.nombre = plugin.name;
+            console.log(`   ↪ Convertido 'name' a 'nombre': ${plugin.name}`);
+        }
+
+        // Convertir 'description' a 'descripcion'
+        if (plugin.description && !plugin.descripcion) {
+            pluginNormalizado.descripcion = plugin.description;
+        }
+
+        // Convertir 'category' a 'categoria'
+        if (plugin.category && !plugin.categoria) {
+            pluginNormalizado.categoria = plugin.category;
+        }
+
+        // Asegurar que tenga categoría por defecto
+        if (!pluginNormalizado.categoria) {
+            pluginNormalizado.categoria = 'general';
+        }
+
+        return pluginNormalizado;
     }
 
     obtenerPluginsCargados() {

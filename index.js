@@ -5,8 +5,8 @@ async function main() {
     try {
         const bot = new Bot();
 
-        // Establecer referencia del bot en el procesador de mensajes
-        bot.procesadorMensajes.setBot(bot);
+        // ELIMINA esta línea - Ya no es necesaria
+        // bot.procesadorMensajes.setBot(bot);
 
         await bot.iniciar();
     } catch (error) {

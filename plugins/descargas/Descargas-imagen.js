@@ -2,7 +2,7 @@ import { configBot } from '../../config/config.bot.js';
 import { configMensajes } from '../../config/config.mensajes.js';
 
 export default {
-    name: 'imagen',
+    name: 'imagen',  // Mantener name para compatibilidad
     description: 'Buscar imágenes en Google',
     category: 'internet',
     aliases: ['gimage', 'image'],
@@ -13,17 +13,17 @@ export default {
 
         try {
             // Reacción de procesando
-            await bot.procesadorMensajes.reaccionar(message, configBot.reacciones.procesando);
+            await bot.reaccionar(message, configBot.reacciones.procesando);
 
             if (!text) {
-                await bot.procesadorMensajes.enviarMensaje(
+                await bot.enviarMensaje(
                     jid,
                     `${configMensajes.humano.pensando} ${configMensajes.errores.sinArgumentos}\n\n*Ejemplo:* ${configBot.prefijo}imagen Minecraft`
                 );
-                return await bot.procesadorMensajes.reaccionar(message, configBot.reacciones.error);
+                return await bot.reaccionar(message, configBot.reacciones.error);
             }
 
-            await bot.procesadorMensajes.enviarMensaje(
+            await bot.enviarMensaje(
                 jid,
                 `${configMensajes.humano.pensando} Buscando imágenes de: ${text}...`
             );
@@ -60,18 +60,18 @@ export default {
             });
 
             if (filteredData.length === 0) {
-                await bot.procesadorMensajes.enviarMensaje(
+                await bot.enviarMensaje(
                     jid,
                     `${configMensajes.humano.ups} No se encontraron imágenes de: ${text}`
                 );
-                return await bot.procesadorMensajes.reaccionar(message, configBot.reacciones.error);
+                return await bot.reaccionar(message, configBot.reacciones.error);
             }
 
             // Tomar las primeras 10 imágenes o todas las disponibles si hay menos
             const imagesToSend = filteredData.slice(0, 10);
 
-            await bot.procesadorMensajes.reaccionar(message, "📸");
-            await bot.procesadorMensajes.enviarMensaje(jid, `${configMensajes.respuestas.descargaInicio}\nEnviando ${imagesToSend.length} imágenes...`);
+            await bot.reaccionar(message, "📸");
+            await bot.enviarMensaje(jid, `${configMensajes.respuestas.descargaInicio}\nEnviando ${imagesToSend.length} imágenes...`);
 
             let successCount = 0;
             let failCount = 0;
@@ -93,14 +93,15 @@ export default {
                         caption += `📐 *Resolución:* ${image.origin.width}x${image.origin.height}`;
                     }
 
-                    // Enviar la imagen
-                    await bot.obtenerManejadorConexion().obtenerSocket().sendMessage(
+                    // Enviar la imagen usando el socket directamente
+                    const sock = bot.obtenerSocket();
+                    await sock.sendMessage(
                         jid,
                         {
                             image: { url: image.url },
                             caption: caption
                         },
-                        { quoted: i === 0 ? message : undefined } // Solo citar el primer mensaje
+                        { quoted: i === 0 ? message : undefined }
                     );
 
                     successCount++;
@@ -118,27 +119,27 @@ export default {
 
             // Mensaje final de resumen
             if (failCount > 0) {
-                await bot.procesadorMensajes.enviarMensaje(
+                await bot.enviarMensaje(
                     jid,
                     `${configMensajes.humano.ups} ${failCount} de ${imagesToSend.length} imágenes no se pudieron enviar.`
                 );
-                await bot.procesadorMensajes.reaccionar(message, "⚠️");
+                await bot.reaccionar(message, "⚠️");
             } else {
-                await bot.procesadorMensajes.enviarMensaje(
+                await bot.enviarMensaje(
                     jid,
                     `${configMensajes.humano.listo} ¡Listo! Se enviaron ${successCount} imágenes de: ${text}`
                 );
-                await bot.procesadorMensajes.reaccionar(message, configBot.reacciones.exito);
+                await bot.reaccionar(message, configBot.reacciones.exito);
             }
 
         } catch (error) {
             console.error('Error en comando imagen:', error);
 
-            await bot.procesadorMensajes.enviarMensaje(
+            await bot.enviarMensaje(
                 jid,
                 `${configMensajes.humano.ups} Error al buscar imágenes. Intenta más tarde.`
             );
-            await bot.procesadorMensajes.reaccionar(message, configBot.reacciones.error);
+            await bot.reaccionar(message, configBot.reacciones.error);
         }
     }
 };

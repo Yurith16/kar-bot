@@ -1,14 +1,12 @@
 import { ManejadorConexion } from './ManejadorConexion.js';
-import { ProcesadorMensajes } from './ProcesadorMensajes.js';
-import { CargadorPlugins } from '../manejadores/CargadorPlugins.js';
+import { CommandHandler } from './CommandHandler.js';
 import { configBot } from '../../config/config.bot.js';
 import { configDesarrollador } from '../../config/config.desarrollador.js';
 
 export class Bot {
     constructor() {
         this.manejadorConexion = new ManejadorConexion();
-        this.procesadorMensajes = new ProcesadorMensajes(this.manejadorConexion);
-        this.cargadorPlugins = new CargadorPlugins(this.procesadorMensajes);
+        this.commandHandler = new CommandHandler(this.manejadorConexion);
     }
 
     async iniciar() {
@@ -16,8 +14,8 @@ export class Bot {
         console.log(`👨‍💻 Desarrollador: ${configDesarrollador.nombre}`);
 
         try {
-            // Cargar plugins automáticamente
-            await this.cargadorPlugins.cargarPlugins();
+            // Cargar comandos
+            await this.commandHandler.cargarComandos();
 
             // Configurar eventos
             this.configurarEventos();
@@ -25,8 +23,8 @@ export class Bot {
             // Iniciar conexión
             await this.manejadorConexion.iniciarConexion();
 
-            // Inicializar procesador de mensajes
-            this.procesadorMensajes.inicializar();
+            // Inicializar command handler
+            this.commandHandler.inicializar();
 
         } catch (error) {
             console.error('❌ Error fatal al iniciar el bot:', error);
@@ -42,34 +40,26 @@ export class Bot {
         this.manejadorConexion.on('conexionCerrada', (datos) => {
             console.log('🔌 Conexión cerrada:', datos);
         });
-
-        this.manejadorConexion.on('qrGenerado', (qr) => {
-            console.log('📱 QR generado, escanea con WhatsApp');
-        });
     }
 
     mostrarInfoConexion() {
-        const plugins = this.cargadorPlugins.obtenerPluginsCargados();
+        const comandos = this.commandHandler.obtenerComandosCargados();
+        const categorias = this.commandHandler.obtenerCategorias();
 
         console.log('\n✨ ===== KARBOT CONECTADO ===== ✨');
         console.log(`🤖 Nombre: ${configBot.nombre}`);
         console.log(`🔧 Versión: ${configBot.version}`);
         console.log(`🎯 Prefijo: ${configBot.prefijo}`);
-        console.log(`📦 Plugins cargados: ${plugins.length}`);
-        console.log(`🔧 Comandos: ${this.procesadorMensajes.comandos.size}`);
-        console.log('📋 Plugins:', plugins.join(', '));
+        console.log(`📦 Comandos cargados: ${comandos.length}`);
+        console.log(`📊 Categorías: ${categorias.length}`);
         console.log('✅ Listo para recibir mensajes\n');
     }
 
-    obtenerProcesadorMensajes() {
-        return this.procesadorMensajes;
+    obtenerCommandHandler() {
+        return this.commandHandler;
     }
 
     obtenerManejadorConexion() {
         return this.manejadorConexion;
-    }
-
-    obtenerCargadorPlugins() {
-        return this.cargadorPlugins;
     }
 }

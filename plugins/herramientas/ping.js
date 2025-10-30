@@ -2,25 +2,34 @@ export default {
     name: 'ping',
     description: 'Comando para verificar la latencia del bot',
     category: 'herramientas',
+    aliases: ['latencia', 'test'],
 
     execute: async (message, args, bot) => {
-        const inicio = Date.now();
+        try {
+            console.log('🔧 EJECUTANDO COMANDO PING');
 
-        // Enviar mensaje inicial
-        await bot.procesadorMensajes.enviarMensaje(message.key.remoteJid, '🏓 Calculando latencia...');
+            const inicio = Date.now();
+            const jid = message.key.remoteJid;
 
-        const fin = Date.now();
-        const latencia = fin - inicio;
+            await bot.enviarMensaje(jid, '🏓 Calculando latencia...');
 
-        // Respuesta con información detallada
-        const respuesta = `
+            const fin = Date.now();
+            const latencia = fin - inicio;
+
+            const respuesta = `
 ✅ *PONG!*
 
 🏓 *Latencia:* ${latencia}ms
 🤖 *Estado:* ✅ Conectado
 🕐 *Tiempo de respuesta:* ${latencia < 200 ? '⚡ Rápido' : latencia < 500 ? '🚀 Normal' : '🐢 Lento'}
-        `.trim();
+            `.trim();
 
-        await bot.procesadorMensajes.enviarMensaje(message.key.remoteJid, respuesta);
+            await bot.enviarMensaje(jid, respuesta);
+
+            console.log('✅ Comando ping ejecutado correctamente');
+
+        } catch (error) {
+            console.error('❌ Error en comando ping:', error);
+        }
     }
 };
