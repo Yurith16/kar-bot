@@ -1,127 +1,214 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export class CargadorPlugins {
-    constructor(procesadorMensajes) {
-        this.procesadorMensajes = procesadorMensajes;
-        this.pluginsCargados = new Map();
+class CargadorPlugins {
+    constructor(bot) {
+        this.bot = bot;
+        this.plugins = new Map();
+        this.pluginsDir = path.join(__dirname, '..', 'plugins');
+        this.categorias = ['descargas', 'juegos', 'herramientas', 'utilidades'];
     }
 
     async cargarPlugins() {
-        const pluginsDir = path.join(process.cwd(), 'plugins');
+        console.log(chalk.cyan('📦 Iniciando carga de plugins...'));
 
-        try {
-            console.log('🔍 Buscando plugins...');
-            await this.explorarDirectorio(pluginsDir);
-            console.log(`✅ Plugins cargados: ${this.pluginsCargados.size}`);
-        } catch (error) {
-            console.error('❌ Error cargando plugins:', error);
+        for (const categoria of this.categorias) {
+            await this.cargarPluginsCategoria(categoria);
         }
+
+        console.log(chalk.green(`✅ Plugins cargados: ${this.plugins.size} total`));
     }
 
-    async explorarDirectorio(directorio) {
-        if (!fs.existsSync(directorio)) {
-            console.log(`📁 Directorio de plugins no encontrado: ${directorio}`);
-            return;
-        }
+    async cargarPluginsCategoria(categoria) {
+        const categoriaPath = path.join(this.pluginsDir, categoria);
 
-        const items = fs.readdirSync(directorio);
-
-        for (const item of items) {
-            const rutaCompleta = path.join(directorio, item);
-            const stat = fs.statSync(rutaCompleta);
-
-            if (stat.isDirectory()) {
-                await this.explorarDirectorio(rutaCompleta);
-            } else if (item.endsWith('.js') && !item.startsWith('_')) {
-                await this.cargarPlugin(rutaCompleta);
-            }
-        }
-    }
-
-    async cargarPlugin(rutaPlugin) {
         try {
-            const rutaModulo = `file://${rutaPlugin}`;
-            const modulo = await import(rutaModulo);
-
-            console.log(`🔍 Procesando: ${rutaPlugin}`);
-
-            // Soporte para múltiples estructuras
-            let plugin = modulo.default || modulo.comando;
-
-            if (!plugin) {
-                console.log(`⚠️ No se encontró export válido en: ${rutaPlugin}`);
+            if (!fs.existsSync(categoriaPath)) {
+                console.log(chalk.yellow(`⚠️ No existe la categoría: ${categoria}`));
                 return;
             }
 
-            // Normalizar la estructura del plugin
-            const pluginNormalizado = this.normalizarPlugin(plugin, rutaPlugin);
+            const archivos = fs.readdirSync(categoriaPath);
+            const pluginsCategoria = archivos.filter(archivo => 
+                archivo.endsWith('.js') && !archivo.startsWith('_')
+            );
 
-            if (pluginNormalizado && pluginNormalizado.nombre && pluginNormalizado.execute) {
-                this.procesadorMensajes.registrarComando(pluginNormalizado.nombre, pluginNormalizado);
-                this.pluginsCargados.set(pluginNormalizado.nombre, {
-                    ruta: rutaPlugin,
-                    plugin: pluginNormalizado
-                });
+            console.log(chalk.blue(`🔍 Buscando plugins en ${categoria}: ${pluginsCategoria.length} encontrados`));
 
-                console.log(`✅ Plugin cargado: ${pluginNormalizado.nombre}`);
-
-                // Registrar aliases si existen
-                if (pluginNormalizado.aliases && Array.isArray(pluginNormalizado.aliases)) {
-                    pluginNormalizado.aliases.forEach(alias => {
-                        this.procesadorMensajes.registrarComando(alias, pluginNormalizado);
-                        console.log(`✅ Alias registrado: ${alias} -> ${pluginNormalizado.nombre}`);
-                    });
-                }
-            } else {
-                console.log(`⚠️ Plugin inválido en: ${rutaPlugin}`);
-                console.log(`   - ¿Tiene nombre?: ${!!pluginNormalizado?.nombre}`);
-                console.log(`   - ¿Tiene execute?: ${!!pluginNormalizado?.execute}`);
+            for (const archivo of pluginsCategoria) {
+                await this.cargarPlugin(path.join(categoriaPath, archivo), categoria);
             }
 
         } catch (error) {
-            console.error(`❌ Error cargando plugin ${rutaPlugin}:`, error);
+            console.error(chalk.red(`❌ Error cargando categoría ${categoria}:`), error);
         }
     }
 
-    normalizarPlugin(plugin, rutaPlugin) {
-        // Si ya tiene la estructura correcta, retornarlo tal cual
-        if (plugin.nombre && plugin.execute) {
-            return plugin;
+    async cargarPlugin(rutaPlugin, categoria) {
+        try {
+            // Importar el plugin
+            const moduloPlugin = await import(`file://${rutaPlugin}`);
+            const PluginClass = moduloPlugin.default || moduloPlugin;
+
+            // Crear instancia del plugin
+            const plugin = new PluginClass(this.bot);
+
+            // Validar que el plugin tenga la estructura correcta
+            if (!plugin.nombre || !plugin.comandos) {
+                console.log(chalk.yellow(`⚠️ Plugin inválido en ${rutaPlugin}, estructura incorrecta`));
+                return;
+            }
+
+            // Registrar el plugin
+            this.plugins.set(plugin.nombre, {
+                instancia: plugin,
+                categoria: categoria,
+                ruta: rutaPlugin,
+                comandos: plugin.comandos || []
+            });
+
+            // Cargar comandos del plugin
+            await this.cargarComandosPlugin(plugin);
+
+            console.log(chalk.green(`✅ Plugin cargado: ${plugin.nombre} (${categoria})`));
+
+        } catch (error) {
+            console.error(chalk.red(`❌ Error cargando plugin ${rutaPlugin}:`), error);
         }
-
-        // Convertir estructura antigua a nueva
-        const pluginNormalizado = { ...plugin };
-
-        // Convertir 'name' a 'nombre'
-        if (plugin.name && !plugin.nombre) {
-            pluginNormalizado.nombre = plugin.name;
-            console.log(`   ↪ Convertido 'name' a 'nombre': ${plugin.name}`);
-        }
-
-        // Convertir 'description' a 'descripcion'
-        if (plugin.description && !plugin.descripcion) {
-            pluginNormalizado.descripcion = plugin.description;
-        }
-
-        // Convertir 'category' a 'categoria'
-        if (plugin.category && !plugin.categoria) {
-            pluginNormalizado.categoria = plugin.category;
-        }
-
-        // Asegurar que tenga categoría por defecto
-        if (!pluginNormalizado.categoria) {
-            pluginNormalizado.categoria = 'general';
-        }
-
-        return pluginNormalizado;
     }
 
-    obtenerPluginsCargados() {
-        return Array.from(this.pluginsCargados.keys());
+    async cargarComandosPlugin(plugin) {
+        if (!plugin.comandos || typeof plugin.comandos !== 'object') {
+            return;
+        }
+
+        for (const [nombreComando, configComando] of Object.entries(plugin.comandos)) {
+            try {
+                // Agregar información del plugin al comando
+                const comandoCompleto = {
+                    ...configComando,
+                    plugin: plugin.nombre,
+                    categoria: plugin.categoria || 'general'
+                };
+
+                // Registrar el comando en el bot
+                this.bot.agregarComando(nombreComando, comandoCompleto);
+
+            } catch (error) {
+                console.error(chalk.red(`❌ Error cargando comando ${nombreComando} del plugin ${plugin.nombre}:`), error);
+            }
+        }
+    }
+
+    async descargarPlugin(nombre) {
+        const plugin = this.plugins.get(nombre);
+        if (!plugin) {
+            console.log(chalk.yellow(`⚠️ Plugin no encontrado: ${nombre}`));
+            return false;
+        }
+
+        try {
+            // Eliminar comandos del plugin
+            for (const comando of plugin.comandos) {
+                this.bot.eliminarComando(comando);
+            }
+
+            // Eliminar el plugin
+            this.plugins.delete(nombre);
+
+            console.log(chalk.green(`✅ Plugin descargado: ${nombre}`));
+            return true;
+
+        } catch (error) {
+            console.error(chalk.red(`❌ Error descargando plugin ${nombre}:`), error);
+            return false;
+        }
+    }
+
+    async recargarPlugin(nombre) {
+        const plugin = this.plugins.get(nombre);
+        if (!plugin) {
+            console.log(chalk.yellow(`⚠️ Plugin no encontrado para recargar: ${nombre}`));
+            return false;
+        }
+
+        try {
+            // Descargar primero
+            await this.descargarPlugin(nombre);
+
+            // Volver a cargar
+            await this.cargarPlugin(plugin.ruta, plugin.categoria);
+
+            console.log(chalk.green(`✅ Plugin recargado: ${nombre}`));
+            return true;
+
+        } catch (error) {
+            console.error(chalk.red(`❌ Error recargando plugin ${nombre}:`), error);
+            return false;
+        }
+    }
+
+    obtenerPlugins() {
+        return Array.from(this.plugins.values()).map(pluginInfo => ({
+            nombre: pluginInfo.instancia.nombre,
+            categoria: pluginInfo.categoria,
+            descripcion: pluginInfo.instancia.descripcion || 'Sin descripción',
+            version: pluginInfo.instancia.version || '1.0.0',
+            comandos: pluginInfo.comandos.length
+        }));
+    }
+
+    obtenerPlugin(nombre) {
+        return this.plugins.get(nombre);
+    }
+
+    // Método para cargar un plugin específico por ruta
+    async cargarPluginEspecifico(rutaCompleta) {
+        try {
+            const categoria = path.basename(path.dirname(rutaCompleta));
+            await this.cargarPlugin(rutaCompleta, categoria);
+            return true;
+        } catch (error) {
+            console.error(chalk.red(`❌ Error cargando plugin específico ${rutaCompleta}:`), error);
+            return false;
+        }
+    }
+
+    // Método para listar plugins por categoría
+    listarPluginsPorCategoria() {
+        const resultado = {};
+
+        for (const categoria of this.categorias) {
+            resultado[categoria] = Array.from(this.plugins.values())
+                .filter(plugin => plugin.categoria === categoria)
+                .map(plugin => plugin.instancia.nombre);
+        }
+
+        return resultado;
+    }
+
+    // Método para verificar estado de plugins
+    obtenerEstadoPlugins() {
+        const estado = {
+            total: this.plugins.size,
+            porCategoria: {},
+            errores: []
+        };
+
+        for (const [nombre, plugin] of this.plugins) {
+            if (!estado.porCategoria[plugin.categoria]) {
+                estado.porCategoria[plugin.categoria] = 0;
+            }
+            estado.porCategoria[plugin.categoria]++;
+        }
+
+        return estado;
     }
 }
+
+export { CargadorPlugins };

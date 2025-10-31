@@ -1,244 +1,137 @@
-import { configBot } from '../../config/config.bot.js';
-import { configMensajes } from '../../config/config.mensajes.js';
-import { ManejadorComandos } from './ManejadorComandos.js';
+import { configDesarrollador } from '../../config/index.js';
 
-export class ProcesadorMensajes {
-    constructor(manejadorConexion) {
-        this.manejadorConexion = manejadorConexion;
-        this.manejadorComandos = new ManejadorComandos(this);
-        this.bot = null;
+class ProcesadorMensajes {
+    constructor() {
+        this.prefijo = '/';
+        this.numeroOwner = configDesarrollador.numero;
     }
 
-    setBot(bot) {
-        this.bot = bot;
-    }
+    // Extracción de texto unificada (igual a tu sistema que funciona)
+    obtenerTextoMensaje(message) {
+        try {
+            const msg = message.message;
+            if (!msg) return "";
 
-    inicializar() {
-        this.manejadorConexion.on('mensajesRecibidos', (data) => {
-            this.procesarMensajesLote(data);
-        });
-    }
+            let text = msg.conversation || 
+                       msg.extendedTextMessage?.text || 
+                       msg.imageMessage?.caption || 
+                       msg.videoMessage?.caption || 
+                       msg.documentMessage?.caption || "";
 
-    async procesarMensajesLote(data) {
-        const { messages } = data;
+            // Compatibilidad con mensajes temporales
+            if (!text && msg.ephemeralMessage) {
+                text = msg.ephemeralMessage.message?.conversation || 
+                       msg.ephemeralMessage.message?.extendedTextMessage?.text || "";
+            }
 
-        for (const message of messages) {
-            await this.procesarMensajeIndividual(message);
-        }
-    }
+            // Fallback para mensajes ViewOnce
+            if (!text && msg.viewOnceMessage) {
+                text = msg.viewOnceMessage.message?.conversation || 
+                       msg.viewOnceMessage.message?.extendedTextMessage?.text || "";
+            }
 
-    async procesarMensajeIndividual(message) {
-        if (!message.message) return;
-
-        // Ignorar mensajes del propio bot
-        if (message.key.fromMe) return;
-
-        const jid = message.key.remoteJid;
-        const tipo = Object.keys(message.message)[0];
-
-        const esGrupo = jid.endsWith('@g.us');
-        const texto = this.extraerTexto(message);
-
-        if (!texto) return;
-
-        // Procesar comandos en privado
-        if (!esGrupo && texto.startsWith(configBot.prefijo)) {
-            await this.procesarComando(message, texto);
-        }
-        // Procesar comandos en grupos (con prefijo o mencionando al bot)
-        else if (esGrupo && (texto.startsWith(configBot.prefijo) || this.estaMencionado(message))) {
-            await this.procesarComando(message, texto);
+            return text.trim();
+        } catch (error) {
+            return "";
         }
     }
 
-    extraerTexto(message) {
-        if (message.message.conversation) {
-            return message.message.conversation;
+    async procesar(mensaje, sock) {
+        try {
+            // Ignorar mensajes que no son de texto o que son del propio bot
+            if (!mensaje.message || mensaje.key.fromMe) {
+                return null;
+            }
+
+            const chat = mensaje.key.remoteJid;
+            const usuario = mensaje.key.participant || mensaje.key.remoteJid;
+            const esGrupo = chat.endsWith('@g.us');
+
+            // Obtener el texto del mensaje
+            const texto = this.obtenerTextoMensaje(mensaje);
+            if (!texto) return null;
+
+            // Verificar si es un comando
+            const esComando = texto.startsWith(this.prefijo);
+            if (!esComando) return null;
+
+            // Procesar el comando
+            const comandoProcesado = this.procesarComando(texto, usuario, chat, esGrupo);
+
+            if (comandoProcesado) {
+                // Agregar información adicional
+                comandoProcesado.mensajeOriginal = mensaje;
+                comandoProcesado.sock = sock;
+                comandoProcesado.esGrupo = esGrupo;
+                comandoProcesado.timestamp = new Date();
+
+                // Verificar si es el owner
+                comandoProcesado.esOwner = this.esOwner(usuario);
+
+                return comandoProcesado;
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('❌ Error procesando mensaje:', error);
+            return null;
         }
-        if (message.message.extendedTextMessage?.text) {
-            return message.message.extendedTextMessage.text;
-        }
-        return null;
     }
 
-    estaMencionado(message) {
-        if (message.message.extendedTextMessage?.contextInfo?.mentionedJid) {
-            const mencionados = message.message.extendedTextMessage.contextInfo.mentionedJid;
-            const botJid = this.manejadorConexion.obtenerSocket()?.user?.id;
-            return mencionados.includes(botJid);
-        }
-        return false;
-    }
-
-    async procesarComando(message, textoCompleto) {
-        const jid = message.key.remoteJid;
-        const esGrupo = jid.endsWith('@g.us');
-
-        let textoLimpio = textoCompleto;
-
-        if (esGrupo && this.estaMencionado(message)) {
-            textoLimpio = textoLimpio.replace(/@\d+/g, '').trim();
-        }
-
-        if (textoLimpio.startsWith(configBot.prefijo)) {
-            textoLimpio = textoLimpio.slice(configBot.prefijo.length);
-        }
-
-        const partes = textoLimpio.split(' ');
+    procesarComando(texto, usuario, chat, esGrupo) {
+        // Remover el prefijo y dividir en partes
+        const textoLimpio = texto.slice(this.prefijo.length).trim();
+        const partes = textoLimpio.split(/\s+/);
         const comando = partes[0].toLowerCase();
-        const argumentos = partes.slice(1);
+        const args = partes.slice(1);
 
-        console.log(`⚡ Comando detectado: ${comando}`);
-        console.log(`📋 Argumentos: ${argumentos}`);
-        console.log(`👥 Tipo: ${esGrupo ? 'Grupo' : 'Privado'}`);
+        return {
+            comando,
+            args,
+            textoCompleto: textoLimpio,
+            textoOriginal: texto,
+            usuario,
+            chat,
+            esGrupo,
+            esComando: true,
+            prefijo: this.prefijo
+        };
+    }
 
-        // Intentar reaccionar pero no bloquear si falla
-        await this.reaccionarSeguro(message, configBot.reacciones.procesando);
+    esOwner(usuario) {
+        if (!usuario) return false;
 
+        // Normalizar el número (remover @s.whatsapp.net y otros sufijos)
+        const numeroUsuario = usuario.replace(/@.*$/, '');
+        const numeroOwner = this.numeroOwner.replace(/[^0-9]/g, '');
+
+        return numeroUsuario === numeroOwner;
+    }
+
+    // Método para reaccionar a mensajes (para compatibilidad con plugins)
+    async reaccionar(sock, chat, messageKey, emoji) {
         try {
-            const exito = await this.manejadorComandos.ejecutarComando(message, comando, argumentos);
-
-            if (exito) {
-                await this.reaccionarSeguro(message, configBot.reacciones.exito);
-            } else {
-                await this.reaccionarSeguro(message, configBot.reacciones.error);
-            }
-
-        } catch (error) {
-            console.error(`❌ Error ejecutando comando ${comando}:`, error);
-
-            // Solo enviar mensaje de error en privado para evitar spam en grupos
-            if (!esGrupo) {
-                await this.mensajeErrorGeneral(message, error);
-            }
-
-            await this.reaccionarSeguro(message, configBot.reacciones.error);
-        }
-    }
-
-    registrarComando(nombre, comando) {
-        this.manejadorComandos.registrarComando(nombre, comando);
-    }
-
-    async mensajeErrorComandoNoEncontrado(message, comando) {
-        const esGrupo = message.key.remoteJid.endsWith('@g.us');
-        const respuesta = `${configMensajes.humano.ups} ${configMensajes.errores.comandoNoEncontrado}\n\nComando: ${comando}`;
-
-        // En grupos, solo responder si fue mencionado
-        if (!esGrupo || this.estaMencionado(message)) {
-            await this.enviarMensajeSeguro(message.key.remoteJid, respuesta);
-        }
-    }
-
-    async mensajeErrorGeneral(message, error) {
-        const esGrupo = message.key.remoteJid.endsWith('@g.us');
-
-        // En grupos, no enviar mensajes de error para evitar spam
-        if (!esGrupo) {
-            const respuesta = `${configMensajes.errores.general}\nError: ${error.message || error}`;
-            await this.enviarMensajeSeguro(message.key.remoteJid, respuesta);
-        }
-    }
-
-    async reaccionar(mensaje, reaccion) {
-        return await this.reaccionarSeguro(mensaje, reaccion);
-    }
-
-    async reaccionarSeguro(mensaje, reaccion) {
-        const sock = this.manejadorConexion.obtenerSocket();
-        if (!sock) return;
-
-        try {
-            await sock.sendMessage(mensaje.key.remoteJid, {
+            await sock.sendMessage(chat, {
                 react: {
-                    text: reaccion,
-                    key: mensaje.key
+                    text: emoji,
+                    key: messageKey
                 }
             });
         } catch (error) {
-            // Ignorar errores de reacciones, son menos críticos
-            console.log('⚠️ No se pudo reaccionar (puede ser normal en algunos chats):', error.message);
+            console.error('❌ Error reaccionando:', error);
         }
     }
 
-    async enviarMensaje(jid, contenido) {
-        return await this.enviarMensajeSeguro(jid, contenido);
-    }
-
-    async enviarMensajeSeguro(jid, contenido) {
-        const sock = this.manejadorConexion.obtenerSocket();
-        if (!sock) return;
-
+    // Método para enviar mensajes (para compatibilidad con plugins)
+    async enviarMensaje(sock, chat, contenido, opciones = {}) {
         try {
-            // Primero intentar con parámetros normales
-            await sock.sendMessage(jid, { text: contenido });
+            return await sock.sendMessage(chat, contenido, opciones);
         } catch (error) {
-            console.error('Error al enviar mensaje:', error.message);
-
-            // Segundo intento con parámetros diferentes
-            try {
-                await sock.sendMessage(jid, { text: contenido }, { 
-                    waitForAck: false,
-                    additionalAttributes: {}
-                });
-            } catch (error2) {
-                console.error('Error en reintento de envío:', error2.message);
-
-                // Tercer intento - método más directo
-                try {
-                    // Para errores de sesión, intentar sin cifrado
-                    await this.enviarMensajeDirecto(jid, contenido);
-                } catch (error3) {
-                    console.error('Error en envío directo:', error3.message);
-                }
-            }
-        }
-    }
-
-    // Método alternativo para enviar mensajes cuando falla el cifrado
-    async enviarMensajeDirecto(jid, contenido) {
-        const sock = this.manejadorConexion.obtenerSocket();
-        if (!sock) return;
-
-        try {
-            // Usar método más básico para evitar problemas de cifrado
-            await sock.sendMessage(jid, { 
-                text: contenido 
-            }, {
-                waitForAck: false,
-                additionalAttributes: {},
-                // Deshabilitar algunas características que pueden causar problemas
-                // timestamp: Date.now()
-            });
-        } catch (error) {
-            console.error('Error en envío directo final:', error.message);
+            console.error('❌ Error enviando mensaje:', error);
             throw error;
         }
     }
-
-    async enviarMensajeConOpciones(jid, contenido, opciones = {}) {
-        const sock = this.manejadorConexion.obtenerSocket();
-        if (!sock) return;
-
-        try {
-            await sock.sendMessage(jid, contenido, {
-                waitForAck: false,
-                ...opciones
-            });
-        } catch (error) {
-            console.error('Error al enviar mensaje con opciones:', error.message);
-        }
-    }
-
-    obtenerSocket() {
-        return this.manejadorConexion.obtenerSocket();
-    }
-
-    obtenerManejadorComandos() {
-        return this.manejadorComandos;
-    }
-
-    obtenerComandos() {
-        return this.manejadorComandos.comandos;
-    }
 }
+
+export { ProcesadorMensajes };
